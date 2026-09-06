@@ -404,24 +404,68 @@ fun MainScreen(
     if (showExportDialog) {
         AlertDialog(
             onDismissRequest = { showExportDialog = false },
-            title = { Text("Export Wellness Data") },
+            title = { Text("Export & Backup") },
             text = {
-                Text("Export all recorded Health Connect metrics (Sleep, Score, RHR, SpO2, HRV, Steps) to share or backup:")
-            },
-            confirmButton = {
-                Button(onClick = {
-                    showExportDialog = false
-                    onExportData("CSV")
-                }) {
-                    Text("Export CSV")
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Choose an export destination for all recorded RingConn health & sleep records:",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = {
+                            showExportDialog = false
+                            onExportData("HEALTH_CONNECT")
+                        }
+                    ) {
+                        Text("Export to Android Health Connect")
+                    }
+
+                    Button(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                        onClick = {
+                            showExportDialog = false
+                            onExportData("BACKUP_DRIVE")
+                        }
+                    ) {
+                        Text("Save to Google Drive / Storage")
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                showExportDialog = false
+                                onExportData("CSV")
+                            }
+                        ) {
+                            Text("Share CSV")
+                        }
+
+                        OutlinedButton(
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                showExportDialog = false
+                                onExportData("JSON")
+                            }
+                        ) {
+                            Text("Share JSON")
+                        }
+                    }
                 }
             },
+            confirmButton = {},
             dismissButton = {
-                OutlinedButton(onClick = {
-                    showExportDialog = false
-                    onExportData("JSON")
-                }) {
-                    Text("Export JSON")
+                TextButton(onClick = { showExportDialog = false }) {
+                    Text("Close")
                 }
             }
         )

@@ -52,6 +52,28 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Health Connect Permission Launcher
+    private val healthConnectPermissionLauncher = registerForActivityResult(
+        androidx.health.connect.client.PermissionController.createRequestPermissionResultContract()
+    ) { granted ->
+        lifecycleScope.launch {
+            val allData = if (historyDataState.isNotEmpty()) historyDataState else ringConnRepo.fetchHistoryDays(30)
+            val statusMsg = com.radfahrzeugs.intervalsdirect.engine.HealthConnectWriter.exportToHealthConnect(this@MainActivity, allData)
+            val isOk = !statusMsg.contains("failed") && !statusMsg.contains("not available")
+            syncLogManager.addLog(
+                SyncLogEntry(
+                    triggerSource = "Health Connect Export",
+                    targetDates = allData.map { it.date.toString() },
+                    statusCode = if (isOk) 200 else 500,
+                    isSuccess = isOk,
+                    summary = statusMsg
+                )
+            )
+            loadLogs()
+            syncState = if (isOk) SyncState.Success(statusMsg, System.currentTimeMillis()) else SyncState.Error(statusMsg)
+        }
+    }
+
     private var todayDataState by mutableStateOf<DailyInspectionData?>(null)
     private var yesterdayDataState by mutableStateOf<DailyInspectionData?>(null)
     private var historyDataState by mutableStateOf<List<DailyInspectionData>>(emptyList())
@@ -518,20 +540,61 @@ class MainActivity : ComponentActivity() {
     private fun handleExport(format: String) {
         lifecycleScope.launch {
             val allData = if (historyDataState.isNotEmpty()) historyDataState else ringConnRepo.fetchHistoryDays(30)
-            val exportText = if (format == "CSV") {
-                MetricCalculator.exportToCsv(allData)
-            } else {
-                MetricCalculator.exportToJson(allData)
-            }
 
-            val sendIntent: Intent = Intent().apply {
-                action = Intent.ACTION_SEND
-                putExtra(Intent.EXTRA_TEXT, exportText)
-                putExtra(Intent.EXTRA_TITLE, "RingConn_Health_Export_${LocalDate.now()}.$format")
-                type = "text/plain"
+            when (format) {
+                "HEALTH_CONNECT" -> {
+                    if (!com.radfahrzeugs.intervalsdirect.engine.HealthConnectWriter.hasPermissions(this@MainActivity)) {
+                        healthConnectPermissionLauncher.launch(com.radfahrzeugs.intervalsdirect.engine.HealthConnectWriter.REQUIRED_WRITE_PERMISSIONS)
+                    } else {
+                        syncState = SyncState.Syncing
+                        val statusMsg = com.radfahrzeugs.intervalsdirect.engine.HealthConnectWriter.exportToHealthConnect(this@MainActivity, allData)
+                        val isOk = !statusMsg.contains("failed") && !statusMsg.contains("not available")
+                        syncLogManager.addLog(
+                            SyncLogEntry(
+                                triggerSource = "Health Connect Export",
+                                targetDates = allData.map { it.date.toString() },
+                                statusCode = if (isOk) 200 else 500,
+                                isSuccess = isOk,
+                                summary = statusMsg
+                            )
+                        )
+                        loadLogs()
+                        syncState = if (isOk) SyncState.Success(statusMsg, System.currentTimeMillis()) else SyncState.Error(statusMsg)
+                    }
+                }
+                "BACKUP_DRIVE" -> {
+                    syncState = SyncState.Syncing
+                    val ok = AutoBackupManager.performAutoBackup(this@MainActivity, allData)
+                    val msg = if (ok) "Backup saved successfully to configured folder!" else "Auto-backup failed. Check folder permissions in Settings."
+                    syncLogManager.addLog(
+                        SyncLogEntry(
+                            triggerSource = "Instant Backup",
+                            targetDates = allData.map { it.date.toString() },
+                            statusCode = if (ok) 200 else 500,
+                            isSuccess = ok,
+                            summary = msg
+                        )
+                    )
+                    loadLogs()
+                    syncState = if (ok) SyncState.Success(msg, System.currentTimeMillis()) else SyncState.Error(msg)
+                }
+                else -> {
+                    val exportText = if (format == "CSV") {
+                        MetricCalculator.exportToCsv(allData)
+                    } else {
+                        MetricCalculator.exportToJson(allData)
+                    }
+
+                    val sendIntent: Intent = Intent().apply {
+                        action = Intent.ACTION_SEND
+                        putExtra(Intent.EXTRA_TEXT, exportText)
+                        putExtra(Intent.EXTRA_TITLE, "RingConn_Health_Export_${LocalDate.now()}.$format")
+                        type = "text/plain"
+                    }
+                    val shareIntent = Intent.createChooser(sendIntent, "Export Health Data ($format)")
+                    startActivity(shareIntent)
+                }
             }
-            val shareIntent = Intent.createChooser(sendIntent, "Export Health Data ($format)")
-            startActivity(shareIntent)
         }
     }
 }
