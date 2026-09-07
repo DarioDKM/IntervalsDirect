@@ -54,7 +54,10 @@ fun InspectionCard(
                         fontWeight = FontWeight.Bold
                     )
 
-                    val hasServerData = data.intervalsExistingData != null
+                    val hasServerData = data.intervalsExistingData != null &&
+                            (!data.intervalsExistingData.isNull("sleepSecs") && data.intervalsExistingData.optInt("sleepSecs", 0) > 0 ||
+                             !data.intervalsExistingData.isNull("restingHR") && data.intervalsExistingData.optInt("restingHR", 0) > 0 ||
+                             !data.intervalsExistingData.isNull("hrv") && data.intervalsExistingData.optDouble("hrv", 0.0) > 0.0)
                     Surface(
                         color = if (hasServerData) SuccessGreen.copy(alpha = 0.15f) else PrimaryAccent.copy(alpha = 0.15f),
                         shape = RoundedCornerShape(8.dp)
